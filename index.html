@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beacon 1 Distance</title>
+    <style>
+        body { font-family: sans-serif; background: #0a0a0a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        #distance-display { font-size: 80px; font-weight: 200; margin: 20px 0; }
+        #unit { font-size: 24px; color: #888; }
+        #status { color: #1D9E75; font-size: 14px; margin-top: 10px; }
+        button { padding: 15px 40px; border-radius: 30px; border: 1px solid #444; background: transparent; color: white; font-size: 18px; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #222; border-color: #fff; }
+        .meter-bar { width: 80%; height: 10px; background: #222; border-radius: 5px; margin-top: 30px; overflow: hidden; }
+        #fill { height: 100%; width: 0%; background: #534AB7; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+
+    <div id="unit">DISTANCE TO B1</div>
+    <div id="distance-display">--.-</div>
+    <div id="unit">METERS</div>
+
+    <div class="meter-bar"><div id="fill"></div></div>
+    
+    <p id="status">Ready to connect...</p>
+    <button id="connectBtn">Connect to FIELD-B1</button>
+
+<script>
+    let beaconDevice = null;
+
+    async function connect() {
+        const statusEl = document.getElementById('status');
+        const distEl = document.getElementById('distance-display');
+        const fillEl = document.getElementById('fill');
+
+        try {
+            statusEl.textContent = "Opening selector...";
+            
+            // This triggers the official Android Bluetooth selector popup
+            beaconDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ name: "FIELD-B1" }],
+                optionalServices: ['generic_access'] 
+            });
+
+            statusEl.textContent = "Connected to B1";
+            document.getElementById('connectBtn').style.display = 'none';
+
+            // Start watching for signal strength (RSSI)
+            // Note: RSSI updates come through the 'advertisementreceived' event
+            beaconDevice.addEventListener('advertisementreceived', (event) => {
+                const rssi = event.rssi;
+                const distance = rssiToDistance(rssi);
+                
+                distEl.textContent = distance.toFixed(1);
+                
+                // Update the visual bar (0m to 10m range)
+                const pct = Math.max(0, Math.min(100, (1 - distance / 10) * 100));
+                fillEl.style.width = pct + "%";
+                
+                statusEl.textContent = `Signal: ${rssi} dBm`;
+            });
+
+            // Tell the browser to keep listening to this specific device
+            await beaconDevice.watchAdvertisements();
+
+        } catch (error) {
+            statusEl.textContent = "Error: " + error.message;
+            statusEl.style.color = "#D85A30";
+        }
+    }
+
+    function rssiToDistance(rssi) {
+        // Standard iBeacon formula
+        // txPower is the RSSI value measured at 1 meter away
+        const txPower = -59; 
+        const n = 2.0; // Environmental factor (2.0 is open space)
+        if (rssi == 0) return -1.0;
+        
+        return Math.pow(10, (txPower - rssi) / (10 * n));
+    }
+
+    document.getElementById('connectBtn').addEventListener('click', connect);
+</script>
+</body>
+</html>
