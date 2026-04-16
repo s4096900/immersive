@@ -1,39 +1,44 @@
 <!DOCTYPE html>
 <html>
-<body style="background:#0a0a0a; color:white; font-family:sans-serif; text-align:center; padding-top:50px;">
-    <h2>Beacon Tracker</h2>
-    <div id="dist" style="font-size:60px;">--.-m</div>
-    <div id="status" style="color:#888; margin:20px;">Checking for FIELD-B1...</div>
-    <button id="btn" style="padding:20px; border-radius:10px; background:#1D9E75; color:white; border:none; font-size:18px;">CONNECT BEACON</button>
+<body style="background:#0a0a0a; color:white; font-family:sans-serif; text-align:center; padding-top:100px;">
+    <div style="font-size:12px; color:#555; letter-spacing:2px;">DISTANCE</div>
+    <div id="dist" style="font-size:80px; font-weight:200; margin:20px;">--.-m</div>
+    <div id="status" style="color:#1D9E75; margin-bottom:40px;">Ready to Scan</div>
+    
+    <button id="btn" style="padding:20px 50px; border-radius:50px; background:#1D9E75; color:white; border:none; font-size:18px; font-weight:bold; cursor:pointer;">FIND FIELD-B1</button>
 
     <script>
-        const SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb'; // Battery Service
+        // Filtering by the Battery Service UUID we put in the ESP32
+        const TARGET_SERVICE = '0000180f-0000-1000-8000-00805f9b34fb';
 
         document.getElementById('btn').onclick = async () => {
             const status = document.getElementById('status');
-            const dist = document.getElementById('dist');
+            const distDisplay = document.getElementById('dist');
             
             try {
-                status.innerText = "Requesting Bluetooth Device...";
+                status.innerText = "Requesting device list...";
+                
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ services: [SERVICE_UUID] }],
-                    optionalServices: [SERVICE_UUID]
+                    filters: [{ services: [TARGET_SERVICE] }]
                 });
 
-                status.innerText = "Target found: " + device.name;
+                status.innerText = "Connected: " + device.name;
 
-                device.addEventListener('advertisementreceived', (e) => {
-                    const d = Math.pow(10, ((-59) - e.rssi) / (10 * 2.0));
-                    dist.innerText = d.toFixed(1) + "m";
-                    status.innerText = "Signal: " + e.rssi + "dBm";
+                // Listen for signal updates
+                device.addEventListener('advertisementreceived', (event) => {
+                    const rssi = event.rssi;
+                    // Standard distance calculation: 10 ^ ((Measured Power - RSSI) / (10 * N))
+                    const d = Math.pow(10, ((-59) - rssi) / (10 * 2.0));
+                    distDisplay.innerText = d.toFixed(1) + "m";
+                    status.innerText = "Signal: " + rssi + "dBm";
                 });
 
+                // Start watching the advertisements
                 await device.watchAdvertisements();
-                status.innerText = "Monitoring signal...";
 
             } catch (err) {
                 status.innerText = "Error: " + err.message;
-                console.error(err);
+                status.style.color = "#D85A30";
             }
         };
     </script>
