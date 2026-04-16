@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beacon Finder</title>
+    <title>Field Beacon Finder</title>
     <style>
         body { font-family: sans-serif; background: #0a0a0a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; }
-        #distance { font-size: 72px; font-weight: 200; margin: 10px 0; color: #534AB7; }
-        #status { color: #888; font-size: 14px; margin-bottom: 20px; padding: 0 20px; }
-        button { padding: 20px 40px; border-radius: 40px; border: none; background: #534AB7; color: white; font-size: 18px; font-weight: bold; cursor: pointer; }
+        #distance { font-size: 72px; font-weight: 200; margin: 10px 0; color: #1D9E75; }
+        #status { color: #888; font-size: 14px; margin-bottom: 20px; padding: 0 20px; line-height: 1.5; }
+        button { padding: 20px 40px; border-radius: 40px; border: none; background: #1D9E75; color: white; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         .info { font-size: 12px; color: #444; margin-top: 40px; text-transform: uppercase; letter-spacing: 1px; }
+        #beacon-name { color: #fff; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="info">Estimated Distance</div>
-    <div id="distance">--.-</div>
-    <div id="status">Bluetooth must be active. Click below to scan for your ESP32.</div>
+    <div class="info">Beacon Distance</div>
+    <div id="distance">--.-m</div>
+    <div id="status">Click to find <span id="beacon-name">FIELD-B1</span></div>
     
     <button id="connectBtn">SCAN FOR BEACON</button>
 
@@ -28,28 +29,38 @@
         const distEl = document.getElementById('distance');
 
         try {
-            statusEl.textContent = "Looking for devices...";
+            statusEl.textContent = "Scanning only for 'FIELD-' devices...";
             
-            // acceptAllDevices is the most reliable way to bypass Android filter bugs
+            // NARROWED FILTER: This tells the phone to ignore everything 
+            // EXCEPT devices starting with "FIELD-"
             beaconDevice = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
+                filters: [
+                    { namePrefix: "FIELD-" }
+                ],
                 optionalServices: ['generic_access'] 
             });
 
-            statusEl.textContent = "Monitoring: " + (beaconDevice.name || "Unknown Device");
-            document.getElementById('connectBtn').textContent = "TAP TO RESET";
+            statusEl.textContent = "Connected to: " + beaconDevice.name;
+            document.getElementById('connectBtn').textContent = "DISCONNECT / RESET";
 
             beaconDevice.addEventListener('advertisementreceived', (event) => {
                 const rssi = event.rssi;
+                // Standard iBeacon distance formula
+                // -59 is txPower, 2.0 is the environmental factor
                 const dist = Math.pow(10, ((-59) - rssi) / (10 * 2.0));
+                
                 distEl.textContent = dist.toFixed(1) + "m";
-                statusEl.textContent = "Last Signal: " + rssi + " dBm";
+                statusEl.textContent = `Signal strength: ${rssi} dBm`;
             });
 
             await beaconDevice.watchAdvertisements();
 
         } catch (error) {
-            statusEl.textContent = "Error: " + error.message;
+            if (error.name === 'NotFoundError') {
+                statusEl.textContent = "No 'FIELD-' beacons found nearby.";
+            } else {
+                statusEl.textContent = "Error: " + error.message;
+            }
             console.error(error);
         }
     }
